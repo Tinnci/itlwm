@@ -1,4 +1,6 @@
-name: CD
+name: itlwm CI/CD
+
+run-name: itlwm CI/CD - ${{ github.event_name }} - ${{ github.ref_name }}
 
 on:
   push:
@@ -20,7 +22,8 @@ env:
   ARTIFACT_DIR: 'release-artifacts'
 
 jobs:
-  build:
+  build_package:
+    name: Build, Package, and Checksum
     runs-on: macos-latest
     permissions:
       contents: read
@@ -37,7 +40,7 @@ jobs:
       with:
         fetch-depth: 0
 
-    - name: Manage Version
+    - name: Resolve Version and Release Mode
       id: version
       env:
         MANUAL_PRERELEASE: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_prerelease }}
@@ -52,8 +55,13 @@ jobs:
         RELEASE_TAG="v${RELEASE_VERSION}"
         RELEASE_NAME="itlwm ${RELEASE_VERSION}"
         PUBLISH_PRERELEASE=false
+        SKIP_RELEASE=false
 
-        if [[ "${GITHUB_EVENT_NAME}" == "push" && "${GITHUB_REF_NAME}" == "master" && "${HEAD_COMMIT_MESSAGE}" != *"Bump version"* ]]; then
+        if [[ "${HEAD_COMMIT_MESSAGE}" == *"[skip release]"* || "${HEAD_COMMIT_MESSAGE}" == *"[release skip]"* || "${HEAD_COMMIT_MESSAGE}" == *"[ci-only]"* ]]; then
+          SKIP_RELEASE=true
+        fi
+
+        if [[ "${GITHUB_EVENT_NAME}" == "push" && "${GITHUB_REF_NAME}" == "master" && "${HEAD_COMMIT_MESSAGE}" != *"Bump version"* && "${SKIP_RELEASE}" == "false" ]]; then
           PUBLISH_PRERELEASE=true
         elif [[ "${MANUAL_PRERELEASE}" == "true" ]]; then
           PUBLISH_PRERELEASE=true
@@ -90,7 +98,7 @@ jobs:
       run: |
         git clone --depth=1 https://github.com/acidanthera/MacKernelSDK.git
 
-    - name: Build itlwm
+    - name: Build itlwm.kext
       run: |
         xcodebuild -scheme itlwm -configuration Debug -derivedDataPath build \
           GIT_COMMIT="${DRIVER_SUFFIX}" \
@@ -99,7 +107,7 @@ jobs:
           OIW_BUILD_COMMIT="${SHORT_SHA}" \
           | xcpretty && exit "${PIPESTATUS[0]}"
 
-    - name: Build AirportItlwm
+    - name: Build AirportItlwm.kext Variants
       run: |
         xcodebuild -scheme "AirportItlwm (all)" -configuration Debug -derivedDataPath build \
           GIT_COMMIT="${DRIVER_SUFFIX}" \
@@ -108,7 +116,7 @@ jobs:
           OIW_BUILD_COMMIT="${SHORT_SHA}" \
           | xcpretty && exit "${PIPESTATUS[0]}"
 
-    - name: Pack Artifacts
+    - name: Package Kext Artifacts
       run: |
         set -euo pipefail
         mkdir -p "${ARTIFACT_DIR}"
@@ -121,7 +129,7 @@ jobs:
         cd "${GITHUB_WORKSPACE}/${ARTIFACT_DIR}"
         shasum -a 256 -- ./*.zip > SHA256SUMS
 
-    - name: Generate Prerelease Release Notes
+    - name: Write Alpha Release Notes
       if: steps.version.outputs.publish_prerelease == 'true'
       run: |
         {
@@ -138,7 +146,7 @@ jobs:
         } > "${ARTIFACT_DIR}/ReleaseNotes.md"
         git log -"5" --format="- %H %s" | sed '/^$/d' >> "${ARTIFACT_DIR}/ReleaseNotes.md"
 
-    - name: Upload Release Artifacts
+    - name: Upload Packaged Artifacts
       if: steps.version.outputs.publish_prerelease == 'true'
       uses: actions/upload-artifact@v7.0.1
       with:
@@ -147,9 +155,10 @@ jobs:
         if-no-files-found: error
         retention-days: 30
 
-  publish:
-    needs: build
-    if: needs.build.outputs.publish_prerelease == 'true'
+  publish_alpha:
+    name: Publish Alpha Prerelease
+    needs: build_package
+    if: needs.build_package.outputs.publish_prerelease == 'true'
     runs-on: macos-latest
     permissions:
       contents: write
@@ -162,18 +171,18 @@ jobs:
       with:
         fetch-depth: 0
 
-    - name: Download Release Artifacts
+    - name: Download Packaged Artifacts
       uses: actions/download-artifact@v8.0.1
       with:
         name: release-artifacts
         path: release-artifacts
 
-    - name: Generate Artifact Attestation
+    - name: Attest Release Artifacts
       uses: actions/attest@v4.1.0
       with:
         subject-path: release-artifacts/*
 
-    - name: Publish GitHub Release
+    - name: Publish Immutable GitHub Prerelease
       uses: ncipollo/release-action@v1.21.0
       with:
         artifactErrorsFailBuild: true
@@ -182,7 +191,7 @@ jobs:
         prerelease: true
         bodyFile: release-artifacts/ReleaseNotes.md
         artifacts: "release-artifacts/*"
-        tag: ${{ needs.build.outputs.release_tag }}
-        name: ${{ needs.build.outputs.release_name }}
+        tag: ${{ needs.build_package.outputs.release_tag }}
+        name: ${{ needs.build_package.outputs.release_name }}
         commit: ${{ github.sha }}
         token: ${{ secrets.GITHUB_TOKEN }}
