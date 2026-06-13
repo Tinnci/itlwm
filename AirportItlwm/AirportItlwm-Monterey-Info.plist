@@ -38,6 +38,12 @@
 	</dict>
 	<key>NSHumanReadableCopyright</key>
 	<string>Copyright © 2020 钟先耀. All rights reserved.</string>
+	<key>OIWBuildCommit</key>
+	<string>$(OIW_BUILD_COMMIT)</string>
+	<key>OIWReleaseChannel</key>
+	<string>$(OIW_RELEASE_CHANNEL)</string>
+	<key>OIWReleaseVersion</key>
+	<string>$(OIW_RELEASE_VERSION)</string>
 	<key>OSBundleLibraries</key>
 	<dict>
 		<key>com.apple.iokit.IO80211FamilyLegacy</key>
