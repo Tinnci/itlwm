@@ -1248,22 +1248,25 @@ ieee80211_node_join_bss(struct ieee80211com *ic, struct ieee80211_node *selbs, i
          memcmp(ic->ic_des_essid, selbs->ni_essid, selbs->ni_esslen) == 0))
         assoc_fail = ic->ic_bss->ni_assoc_fail;
     
-    (*ic->ic_node_copy)(ic, ic->ic_bss, selbs);
-    ni = ic->ic_bss;
-    ni->ni_assoc_fail |= assoc_fail;
-    
-    ic->ic_curmode = ieee80211_chan2mode(ic, ni->ni_chan);
-    
+	(*ic->ic_node_copy)(ic, ic->ic_bss, selbs);
+	ni = ic->ic_bss;
+	ni->ni_assoc_fail |= assoc_fail;
+	ieee80211_reset_assoc_status(ic);
+	ieee80211_record_assoc_node(ic, ni);
+
+	ic->ic_curmode = ieee80211_chan2mode(ic, ni->ni_chan);
+
     /* Make sure we send valid rates in an association request. */
     if (ic->ic_opmode == IEEE80211_M_STA)
         ieee80211_fix_rate(ic, ni,
                            IEEE80211_F_DOSORT | IEEE80211_F_DOFRATE |
                            IEEE80211_F_DONEGO | IEEE80211_F_DODEL);
-    
-    if (ic->ic_flags & IEEE80211_F_RSNON)
-        ieee80211_choose_rsnparams(ic);
-    else if (ic->ic_flags & IEEE80211_F_WEPON)
-        ni->ni_rsncipher = IEEE80211_CIPHER_USEGROUP;
+
+	if (ic->ic_flags & IEEE80211_F_RSNON)
+	    ieee80211_choose_rsnparams(ic);
+	else if (ic->ic_flags & IEEE80211_F_WEPON)
+	    ni->ni_rsncipher = IEEE80211_CIPHER_USEGROUP;
+	ieee80211_record_assoc_node(ic, ni);
     
     ieee80211_node_newstate(selbs, IEEE80211_STA_BSS);
 #ifndef IEEE80211_STA_ONLY
@@ -1590,14 +1593,18 @@ ieee80211_choose_rsnparams(struct ieee80211com *ic)
     
     /* filter out unsupported AKMPs */
     ni->ni_rsnakms &= ic->ic_rsnakms;
-    /* prefer SHA-256 based AKMPs */
-    if ((ic->ic_flags & IEEE80211_F_PSK) && (ni->ni_rsnakms &
-                                             (IEEE80211_AKM_PSK | IEEE80211_AKM_SHA256_PSK))) {
-        /* AP supports PSK AKMP and a PSK is configured */
-        if (ni->ni_rsnakms & IEEE80211_AKM_SHA256_PSK)
-            ni->ni_rsnakms = IEEE80211_AKM_SHA256_PSK;
-        else
-            ni->ni_rsnakms = IEEE80211_AKM_PSK;
+	/* Prefer legacy PSK on PMF-optional mixed AKM APs for interoperability. */
+	if ((ic->ic_flags & IEEE80211_F_PSK) && (ni->ni_rsnakms &
+	                                             (IEEE80211_AKM_PSK | IEEE80211_AKM_SHA256_PSK))) {
+	    /* AP supports PSK AKMP and a PSK is configured */
+	    if ((ni->ni_rsnakms & IEEE80211_AKM_PSK) &&
+	        (ni->ni_rsnakms & IEEE80211_AKM_SHA256_PSK) &&
+	        !(ni->ni_rsncaps & IEEE80211_RSNCAP_MFPR))
+	        ni->ni_rsnakms = IEEE80211_AKM_PSK;
+	    else if (ni->ni_rsnakms & IEEE80211_AKM_SHA256_PSK)
+	        ni->ni_rsnakms = IEEE80211_AKM_SHA256_PSK;
+	    else
+	        ni->ni_rsnakms = IEEE80211_AKM_PSK;
     } else {
         if (ni->ni_rsnakms & IEEE80211_AKM_SHA256_8021X)
             ni->ni_rsnakms = IEEE80211_AKM_SHA256_8021X;

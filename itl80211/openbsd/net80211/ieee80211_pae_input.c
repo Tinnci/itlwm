@@ -282,13 +282,14 @@ ieee80211_recv_4way_msg1(struct ieee80211com *ic,
     /* We are now expecting a new pairwise key. */
     ni->ni_flags |= IEEE80211_NODE_RSN_NEW_PTK;
     
-    if (ic->ic_if.if_flags & IFF_DEBUG)
-        XYLog("%s: received msg %d/%d of the %s handshake from %s\n",
-              ic->ic_if.if_xname, 1, 4, "4-way",
-              ether_sprintf(ni->ni_macaddr));
-    
-    /* send message 2 to authenticator using TPTK */
-    (void)ieee80211_send_4way_msg2(ic, ni, key->replaycnt, &tptk);
+	if (ic->ic_if.if_flags & IFF_DEBUG)
+	    XYLog("%s: received msg %d/%d of the %s handshake from %s\n",
+	          ic->ic_if.if_xname, 1, 4, "4-way",
+	          ether_sprintf(ni->ni_macaddr));
+	ic->ic_assoc_eapol_msg1_rx++;
+
+	/* send message 2 to authenticator using TPTK */
+	(void)ieee80211_send_4way_msg2(ic, ni, key->replaycnt, &tptk);
 }
 
 #ifndef IEEE80211_STA_ONLY
@@ -422,11 +423,14 @@ ieee80211_recv_4way_msg3(struct ieee80211com *ic,
     info = BE_READ_2(key->info);
     
     /* check Key MIC field using KCK */
-    if (ieee80211_eapol_key_check_mic(key, tptk.kck) != 0) {
-        DPRINTF(("key MIC failed\n"));
-        ic->ic_stats.is_rx_eapol_badmic++;
-        return;
-    }
+	if (ieee80211_eapol_key_check_mic(key, tptk.kck) != 0) {
+	    DPRINTF(("key MIC failed\n"));
+	    ic->ic_stats.is_rx_eapol_badmic++;
+	    ieee80211_record_assoc_failure(ic, IEEE80211_ASSOC_FAIL_EAPOL,
+	        0, 0xffff);
+	    return;
+	}
+	ic->ic_assoc_eapol_msg3_rx++;
     /* install TPTK as PTK now that MIC is verified */
     memcpy(&ni->ni_ptk, &tptk, sizeof(tptk));
     
@@ -697,10 +701,12 @@ ieee80211_recv_4way_msg3(struct ieee80211com *ic,
         }
     }
 deauth:
-    if (reason != 0) {
-        IEEE80211_SEND_MGMT(ic, ni, IEEE80211_FC0_SUBTYPE_DEAUTH,
-                            reason);
-        ieee80211_new_state(ic, IEEE80211_S_SCAN, -1);
+	if (reason != 0) {
+	    ieee80211_record_assoc_failure(ic,
+	        ieee80211_assoc_failure_from_reason(reason), reason, 0xffff);
+	    IEEE80211_SEND_MGMT(ic, ni, IEEE80211_FC0_SUBTYPE_DEAUTH,
+	                        reason);
+	    ieee80211_new_state(ic, IEEE80211_S_SCAN, -1);
     }
 }
 
@@ -986,11 +992,13 @@ ieee80211_recv_rsn_group_msg1(struct ieee80211com *ic,
               ether_sprintf(ni->ni_macaddr));
     
     /* send message 2 to authenticator */
-    (void)ieee80211_send_group_msg2(ic, ni, NULL);
-    return;
+	(void)ieee80211_send_group_msg2(ic, ni, NULL);
+	return;
 deauth:
-    IEEE80211_SEND_MGMT(ic, ni, IEEE80211_FC0_SUBTYPE_DEAUTH, reason);
-    ieee80211_new_state(ic, IEEE80211_S_SCAN, -1);
+	ieee80211_record_assoc_failure(ic,
+	    ieee80211_assoc_failure_from_reason(reason), reason, 0xffff);
+	IEEE80211_SEND_MGMT(ic, ni, IEEE80211_FC0_SUBTYPE_DEAUTH, reason);
+	ieee80211_new_state(ic, IEEE80211_S_SCAN, -1);
 }
 
 /*
@@ -1063,13 +1071,15 @@ ieee80211_recv_wpa_group_msg1(struct ieee80211com *ic,
         k->k_len = keylen;
         memcpy(k->k_key, gtk, k->k_len);
         /* install the GTK */
-        switch ((*ic->ic_set_key)(ic, ni, k)) {
-            case 0:
-            case EBUSY:
-                break;
-            default:
-                IEEE80211_SEND_MGMT(ic, ni, IEEE80211_FC0_SUBTYPE_DEAUTH,
-                                    IEEE80211_REASON_AUTH_LEAVE);
+	    switch ((*ic->ic_set_key)(ic, ni, k)) {
+	        case 0:
+	        case EBUSY:
+	            break;
+	        default:
+	            ieee80211_record_assoc_failure(ic, IEEE80211_ASSOC_FAIL_EAPOL,
+	                IEEE80211_REASON_AUTH_LEAVE, 0xffff);
+	            IEEE80211_SEND_MGMT(ic, ni, IEEE80211_FC0_SUBTYPE_DEAUTH,
+	                                IEEE80211_REASON_AUTH_LEAVE);
                 ieee80211_new_state(ic, IEEE80211_S_SCAN, -1);
                 return;
         }

@@ -183,7 +183,7 @@ void itlwm::joinSSID(const char *ssid_name, const char *ssid_pwd)
         wpa.i_ciphers = 0;
         wpa.i_groupcipher = 0;
         wpa.i_protos = IEEE80211_WPA_PROTO_WPA1 | IEEE80211_WPA_PROTO_WPA2;
-        wpa.i_akms = IEEE80211_WPA_AKM_PSK | IEEE80211_WPA_AKM_8021X | IEEE80211_WPA_AKM_SHA256_PSK | IEEE80211_WPA_AKM_SHA256_8021X;
+        wpa.i_akms = IEEE80211_WPA_AKM_PSK | IEEE80211_WPA_AKM_SHA256_PSK;
         memcpy(wpa.i_name, "zxy", strlen("zxy"));
         memset(&psk, 0, sizeof(ieee80211_wpapsk));
         memcpy(psk.i_name, "zxy", strlen("zxy"));
@@ -266,7 +266,7 @@ void itlwm::associateSSID(const char *ssid, const char *pwd)
         wpa.i_ciphers = 0;
         wpa.i_groupcipher = 0;
         wpa.i_protos = IEEE80211_WPA_PROTO_WPA1 | IEEE80211_WPA_PROTO_WPA2;
-        wpa.i_akms = IEEE80211_WPA_AKM_PSK | IEEE80211_WPA_AKM_8021X | IEEE80211_WPA_AKM_SHA256_PSK | IEEE80211_WPA_AKM_SHA256_8021X;
+        wpa.i_akms = IEEE80211_WPA_AKM_PSK | IEEE80211_WPA_AKM_SHA256_PSK;
         ieee80211_ioctl_setwpaparms(ic, &wpa);
     }
     if (ic->ic_state > IEEE80211_S_AUTH && ic->ic_bss != NULL)

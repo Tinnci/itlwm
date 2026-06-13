@@ -79,6 +79,19 @@
 
 #define IEEE80211_DEBUG
 
+#define IEEE80211_ASSOC_FAIL_NONE               0
+#define IEEE80211_ASSOC_FAIL_ASSOC_REJECT       1
+#define IEEE80211_ASSOC_FAIL_DEAUTH             2
+#define IEEE80211_ASSOC_FAIL_4WAY_TIMEOUT       3
+#define IEEE80211_ASSOC_FAIL_GROUP_KEY_TIMEOUT  4
+#define IEEE80211_ASSOC_FAIL_RSN_IE_MISMATCH    5
+#define IEEE80211_ASSOC_FAIL_BAD_GROUP_CIPHER   6
+#define IEEE80211_ASSOC_FAIL_BAD_PAIRWISE_CIPHER 7
+#define IEEE80211_ASSOC_FAIL_BAD_AKMP           8
+#define IEEE80211_ASSOC_FAIL_RSN_CAPS           9
+#define IEEE80211_ASSOC_FAIL_MFP_POLICY         10
+#define IEEE80211_ASSOC_FAIL_EAPOL              11
+
 #define _KASSERT(exp) KASSERT(exp, "")
 
 #define CLUSTER_SIZE 4096
@@ -500,8 +513,26 @@ struct ieee80211com {
 #ifdef USE_APPLE_SUPPLICANT
 	u_int8_t		ic_rsn_ie_override[257];
 #endif
-    u_int16_t       ic_deauth_reason;
-    u_int16_t       ic_assoc_status;
+	    u_int16_t       ic_deauth_reason;
+	    u_int16_t       ic_assoc_status;
+	    u_int16_t       ic_assoc_failure;
+	    u_int16_t       ic_assoc_rsncaps;
+	    u_int16_t       ic_assoc_selected_rsncaps;
+	    u_int           ic_assoc_supported_rsnprotos;
+	    u_int           ic_assoc_rsnprotos;
+	    u_int           ic_assoc_supported_rsnakms;
+	    u_int           ic_assoc_rsnakms;
+	    u_int           ic_assoc_rsnciphers;
+	    enum ieee80211_cipher ic_assoc_rsncipher;
+	    enum ieee80211_cipher ic_assoc_rsngroupcipher;
+	    enum ieee80211_cipher ic_assoc_rsngroupmgmtcipher;
+	    u_int           ic_assoc_eapol_msg1_rx;
+	    u_int           ic_assoc_eapol_msg2_tx;
+	    u_int           ic_assoc_eapol_msg3_rx;
+	    u_int           ic_assoc_eapol_msg4_tx;
+	    u_int8_t        ic_assoc_ssid[IEEE80211_NWID_LEN];
+	    u_int8_t        ic_assoc_ssid_len;
+	    u_int8_t        ic_assoc_bssid[IEEE80211_ADDR_LEN];
 	struct ieee80211_key	ic_nw_keys[IEEE80211_GROUP_NKID];
 	int			ic_def_txkey;	/* group data key index */
 #define ic_wep_txkey	ic_def_txkey
@@ -673,6 +704,12 @@ int	ieee80211_ioctl(struct _ifnet *, u_long, caddr_t);
 int	ieee80211_get_rate(struct ieee80211com *);
 void	ieee80211_watchdog(struct _ifnet *);
 int	ieee80211_fix_rate(struct ieee80211com *, struct ieee80211_node *, int);
+void	ieee80211_reset_assoc_status(struct ieee80211com *);
+void	ieee80211_record_assoc_node(struct ieee80211com *, struct ieee80211_node *);
+void	ieee80211_record_assoc_failure(struct ieee80211com *, u_int16_t,
+	    u_int16_t, u_int16_t);
+u_int16_t ieee80211_assoc_failure_from_reason(u_int16_t);
+u_int16_t ieee80211_assoc_failure_from_status(u_int16_t);
 uint64_t	ieee80211_rate2media(struct ieee80211com *, int,
 		    enum ieee80211_phymode);
 int	ieee80211_media2rate(uint64_t);

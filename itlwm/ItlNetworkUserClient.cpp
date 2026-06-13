@@ -32,6 +32,7 @@ const IOControlMethodAction ItlNetworkUserClient::sMethods[IOCTL_ID_MAX] {
     sSCAN_RESULT,
     sTX_POWER_LEVEL,
     sNW_BSSID,
+    sASSOC_STATUS,
 };
 
 bool ItlNetworkUserClient::initWithTask(task_t owningTask, void *securityID, UInt32 type, OSDictionary *properties)
@@ -380,7 +381,7 @@ sSCAN_RESULT(OSObject* target, void* data, bool isSet)
     }
     bzero(ni, sizeof(*ni));
     
-    ni->ni_rsncaps = that->fNextNodeToSend->ni_capinfo;;
+    ni->ni_rsncaps = that->fNextNodeToSend->ni_rsncaps;
     ni->channel = ieee80211_chan2ieee(ic, that->fNextNodeToSend->ni_chan);
     ni->ni_rsncipher = (enum itl80211_cipher)that->fNextNodeToSend->ni_rsncipher;
     ni->rsn_akms = that->fNextNodeToSend->ni_rsnakms;
@@ -403,5 +404,43 @@ sSCAN_RESULT(OSObject* target, void* data, bool isSet)
 IOReturn ItlNetworkUserClient::
 sTX_POWER_LEVEL(OSObject* target, void* data, bool isSet)
 {
+    return kIOReturnSuccess;
+}
+
+IOReturn ItlNetworkUserClient::
+sASSOC_STATUS(OSObject* target, void* data, bool isSet)
+{
+    ItlNetworkUserClient *that = OSDynamicCast(ItlNetworkUserClient, target);
+    struct ioctl_assoc_status *st = (struct ioctl_assoc_status *)data;
+    struct ieee80211com *ic = that->fDriver->fHalService->get80211Controller();
+
+    if (isSet) {
+        return kIOReturnError;
+    }
+    bzero(st, sizeof(*st));
+    st->version = IOCTL_VERSION;
+    st->failure = (enum itl_assoc_failure)ic->ic_assoc_failure;
+    st->state = (itl_80211_state)ic->ic_state;
+    st->deauth_reason = ic->ic_deauth_reason;
+    st->assoc_status = ic->ic_assoc_status;
+    st->advertised_rsnprotos = ic->ic_assoc_supported_rsnprotos;
+    st->selected_rsnprotos = ic->ic_assoc_rsnprotos;
+    st->advertised_rsnakms = ic->ic_assoc_supported_rsnakms;
+    st->selected_rsnakms = ic->ic_assoc_rsnakms;
+    st->selected_rsnciphers = ic->ic_assoc_rsnciphers;
+    st->selected_rsncipher = (enum itl80211_cipher)ic->ic_assoc_rsncipher;
+    st->rsn_groupcipher = (enum itl80211_cipher)ic->ic_assoc_rsngroupcipher;
+    st->rsn_groupmgmtcipher = (enum itl80211_cipher)ic->ic_assoc_rsngroupmgmtcipher;
+    st->advertised_rsncaps = ic->ic_assoc_rsncaps;
+    st->selected_rsncaps = ic->ic_assoc_selected_rsncaps;
+    st->eapol_msg1_rx = ic->ic_assoc_eapol_msg1_rx;
+    st->eapol_msg2_tx = ic->ic_assoc_eapol_msg2_tx;
+    st->eapol_msg3_rx = ic->ic_assoc_eapol_msg3_rx;
+    st->eapol_msg4_tx = ic->ic_assoc_eapol_msg4_tx;
+    st->pmf_negotiated = (ic->ic_bss != NULL &&
+        (ic->ic_bss->ni_flags & IEEE80211_NODE_MFP)) ? 1 : 0;
+    st->ssid_len = ic->ic_assoc_ssid_len;
+    memcpy(st->ssid, ic->ic_assoc_ssid, MIN(st->ssid_len, (unsigned int)NWID_LEN));
+    memcpy(st->bssid, ic->ic_assoc_bssid, ETHER_ADDR_LEN);
     return kIOReturnSuccess;
 }

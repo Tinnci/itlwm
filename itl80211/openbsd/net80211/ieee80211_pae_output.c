@@ -282,10 +282,12 @@ ieee80211_send_4way_msg1(struct ieee80211com *ic, struct ieee80211_node *ni)
     u_int8_t *frm;
     
     ni->ni_rsn_state = RSNA_PTKSTART;
-    if (++ni->ni_rsn_retries > 3) {
-        IEEE80211_SEND_MGMT(ic, ni, IEEE80211_FC0_SUBTYPE_DEAUTH,
-                            IEEE80211_REASON_4WAY_TIMEOUT);
-        ieee80211_node_leave(ic, ni);
+	if (++ni->ni_rsn_retries > 3) {
+	    ieee80211_record_assoc_failure(ic, IEEE80211_ASSOC_FAIL_4WAY_TIMEOUT,
+	                                   IEEE80211_REASON_4WAY_TIMEOUT, 0xffff);
+	    IEEE80211_SEND_MGMT(ic, ni, IEEE80211_FC0_SUBTYPE_DEAUTH,
+	                        IEEE80211_REASON_4WAY_TIMEOUT);
+	    ieee80211_node_leave(ic, ni);
         return 0;
     }
     m = ieee80211_get_eapol_key(MBUF_DONTWAIT, MT_DATA,
@@ -374,12 +376,13 @@ ieee80211_send_4way_msg2(struct ieee80211com *ic, struct ieee80211_node *ni,
     mbuf_pkthdr_setlen(m, l);
     mbuf_setlen(m, l);
     
-    if (ic->ic_if.if_flags & IFF_DEBUG)
-        XYLog("%s: sending msg %d/%d of the %s handshake to %s, type=%s\n",
-               ic->ic_if.if_xname, 2, 4, "4-way",
-              ether_sprintf(ni->ni_macaddr), ni->ni_rsnprotos == IEEE80211_PROTO_WPA ? "WPA" : "RSN");
-    
-    return ieee80211_send_eapol_key(ic, m, ni, tptk);
+	if (ic->ic_if.if_flags & IFF_DEBUG)
+	    XYLog("%s: sending msg %d/%d of the %s handshake to %s, type=%s\n",
+	           ic->ic_if.if_xname, 2, 4, "4-way",
+	          ether_sprintf(ni->ni_macaddr), ni->ni_rsnprotos == IEEE80211_PROTO_WPA ? "WPA" : "RSN");
+	ic->ic_assoc_eapol_msg2_tx++;
+
+	return ieee80211_send_eapol_key(ic, m, ni, tptk);
 }
 
 #ifndef IEEE80211_STA_ONLY
@@ -397,10 +400,12 @@ ieee80211_send_4way_msg3(struct ieee80211com *ic, struct ieee80211_node *ni)
     u_int8_t *frm;
     
     ni->ni_rsn_state = RSNA_PTKINITNEGOTIATING;
-    if (++ni->ni_rsn_retries > 3) {
-        IEEE80211_SEND_MGMT(ic, ni, IEEE80211_FC0_SUBTYPE_DEAUTH,
-                            IEEE80211_REASON_4WAY_TIMEOUT);
-        ieee80211_node_leave(ic, ni);
+	if (++ni->ni_rsn_retries > 3) {
+	    ieee80211_record_assoc_failure(ic, IEEE80211_ASSOC_FAIL_4WAY_TIMEOUT,
+	                                   IEEE80211_REASON_4WAY_TIMEOUT, 0xffff);
+	    IEEE80211_SEND_MGMT(ic, ni, IEEE80211_FC0_SUBTYPE_DEAUTH,
+	                        IEEE80211_REASON_4WAY_TIMEOUT);
+	    ieee80211_node_leave(ic, ni);
         return 0;
     }
     if (ni->ni_rsnprotos == IEEE80211_PROTO_RSN) {
@@ -502,12 +507,13 @@ ieee80211_send_4way_msg4(struct ieee80211com *ic, struct ieee80211_node *ni)
     mbuf_pkthdr_setlen(m, sizeof(*key));
     mbuf_setlen(m, sizeof(*key));
     
-    if (ic->ic_if.if_flags & IFF_DEBUG)
-        XYLog("%s: sending msg %d/%d of the %s handshake to %s\n",
-               ic->ic_if.if_xname, 4, 4, "4-way",
-               ether_sprintf(ni->ni_macaddr));
-    
-    return ieee80211_send_eapol_key(ic, m, ni, &ni->ni_ptk);
+	if (ic->ic_if.if_flags & IFF_DEBUG)
+	    XYLog("%s: sending msg %d/%d of the %s handshake to %s\n",
+	           ic->ic_if.if_xname, 4, 4, "4-way",
+	           ether_sprintf(ni->ni_macaddr));
+	ic->ic_assoc_eapol_msg4_tx++;
+
+	return ieee80211_send_eapol_key(ic, m, ni, &ni->ni_ptk);
 }
 
 #ifndef IEEE80211_STA_ONLY
@@ -525,10 +531,13 @@ ieee80211_send_group_msg1(struct ieee80211com *ic, struct ieee80211_node *ni)
     u_int8_t *frm;
     u_int8_t kid;
     
-    ni->ni_rsn_gstate = RSNA_REKEYNEGOTIATING;
-    if (++ni->ni_rsn_retries > 3) {
-        IEEE80211_SEND_MGMT(ic, ni, IEEE80211_FC0_SUBTYPE_DEAUTH,
-                            IEEE80211_REASON_GROUP_TIMEOUT);
+	ni->ni_rsn_gstate = RSNA_REKEYNEGOTIATING;
+	if (++ni->ni_rsn_retries > 3) {
+	    ieee80211_record_assoc_failure(ic,
+	                                   IEEE80211_ASSOC_FAIL_GROUP_KEY_TIMEOUT,
+	                                   IEEE80211_REASON_GROUP_TIMEOUT, 0xffff);
+	    IEEE80211_SEND_MGMT(ic, ni, IEEE80211_FC0_SUBTYPE_DEAUTH,
+	                        IEEE80211_REASON_GROUP_TIMEOUT);
         ieee80211_node_leave(ic, ni);
         return 0;
     }

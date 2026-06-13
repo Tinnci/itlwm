@@ -91,6 +91,99 @@ void ieee80211_setbasicrates(struct ieee80211com *);
 int ieee80211_findrate(struct ieee80211com *, enum ieee80211_phymode, int);
 void ieee80211_configure_ampdu_tx(struct ieee80211com *, int);
 
+u_int16_t
+ieee80211_assoc_failure_from_reason(u_int16_t reason)
+{
+    switch (reason) {
+    case IEEE80211_REASON_4WAY_TIMEOUT:
+        return IEEE80211_ASSOC_FAIL_4WAY_TIMEOUT;
+    case IEEE80211_REASON_GROUP_TIMEOUT:
+        return IEEE80211_ASSOC_FAIL_GROUP_KEY_TIMEOUT;
+    case IEEE80211_REASON_RSN_DIFFERENT_IE:
+        return IEEE80211_ASSOC_FAIL_RSN_IE_MISMATCH;
+    case IEEE80211_REASON_BAD_GROUP_CIPHER:
+        return IEEE80211_ASSOC_FAIL_BAD_GROUP_CIPHER;
+    case IEEE80211_REASON_BAD_PAIRWISE_CIPHER:
+        return IEEE80211_ASSOC_FAIL_BAD_PAIRWISE_CIPHER;
+    case IEEE80211_REASON_BAD_AKMP:
+        return IEEE80211_ASSOC_FAIL_BAD_AKMP;
+    case IEEE80211_REASON_RSN_IE_BAD_CAP:
+        return IEEE80211_ASSOC_FAIL_RSN_CAPS;
+    default:
+        return IEEE80211_ASSOC_FAIL_DEAUTH;
+    }
+}
+
+u_int16_t
+ieee80211_assoc_failure_from_status(u_int16_t status)
+{
+    switch (status) {
+    case IEEE80211_STATUS_SUCCESS:
+        return IEEE80211_ASSOC_FAIL_NONE;
+    case IEEE80211_STATUS_MFP_POLICY:
+        return IEEE80211_ASSOC_FAIL_MFP_POLICY;
+    case IEEE80211_STATUS_BAD_GROUP_CIPHER:
+        return IEEE80211_ASSOC_FAIL_BAD_GROUP_CIPHER;
+    case IEEE80211_STATUS_BAD_PAIRWISE_CIPHER:
+        return IEEE80211_ASSOC_FAIL_BAD_PAIRWISE_CIPHER;
+    case IEEE80211_STATUS_BAD_AKMP:
+        return IEEE80211_ASSOC_FAIL_BAD_AKMP;
+    case IEEE80211_STATUS_RSN_IE_VER_UNSUP:
+    case IEEE80211_STATUS_INVALID_PARAM:
+    case IEEE80211_STATUS_IE_INVALID:
+        return IEEE80211_ASSOC_FAIL_RSN_CAPS;
+    default:
+        return IEEE80211_ASSOC_FAIL_ASSOC_REJECT;
+    }
+}
+
+void
+ieee80211_reset_assoc_status(struct ieee80211com *ic)
+{
+    ic->ic_deauth_reason = IEEE80211_REASON_UNSPECIFIED;
+    ic->ic_assoc_status = 0xffff;
+    ic->ic_assoc_failure = IEEE80211_ASSOC_FAIL_NONE;
+    ic->ic_assoc_eapol_msg1_rx = 0;
+    ic->ic_assoc_eapol_msg2_tx = 0;
+    ic->ic_assoc_eapol_msg3_rx = 0;
+    ic->ic_assoc_eapol_msg4_tx = 0;
+}
+
+void
+ieee80211_record_assoc_node(struct ieee80211com *ic, struct ieee80211_node *ni)
+{
+    u_int ssid_len = MIN(ni->ni_esslen, IEEE80211_NWID_LEN);
+
+    memset(ic->ic_assoc_ssid, 0, sizeof(ic->ic_assoc_ssid));
+    memcpy(ic->ic_assoc_ssid, ni->ni_essid, ssid_len);
+    ic->ic_assoc_ssid_len = ssid_len;
+    IEEE80211_ADDR_COPY(ic->ic_assoc_bssid, ni->ni_bssid);
+    ic->ic_assoc_supported_rsnprotos = ni->ni_supported_rsnprotos ?
+        ni->ni_supported_rsnprotos : ni->ni_rsnprotos;
+    ic->ic_assoc_supported_rsnakms = ni->ni_supported_rsnakms ?
+        ni->ni_supported_rsnakms : ni->ni_rsnakms;
+    ic->ic_assoc_rsnprotos = ni->ni_rsnprotos;
+    ic->ic_assoc_rsnakms = ni->ni_rsnakms;
+    ic->ic_assoc_rsnciphers = ni->ni_rsnciphers;
+    ic->ic_assoc_rsncipher = ni->ni_rsncipher;
+    ic->ic_assoc_rsngroupcipher = ni->ni_rsngroupcipher;
+    ic->ic_assoc_rsngroupmgmtcipher = ni->ni_rsngroupmgmtcipher;
+    ic->ic_assoc_selected_rsncaps = ni->ni_rsncaps;
+    ic->ic_assoc_rsncaps = ni->ni_rsncaps;
+}
+
+void
+ieee80211_record_assoc_failure(struct ieee80211com *ic, u_int16_t failure,
+    u_int16_t reason, u_int16_t status)
+{
+    if (failure != IEEE80211_ASSOC_FAIL_NONE)
+        ic->ic_assoc_failure = failure;
+    if (reason != 0)
+        ic->ic_deauth_reason = reason;
+    if (status != 0xffff)
+        ic->ic_assoc_status = status;
+}
+
 void
 ieee80211_begin_bgscan(struct _ifnet *ifp)
 {

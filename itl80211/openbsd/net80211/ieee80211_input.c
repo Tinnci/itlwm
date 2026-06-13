@@ -2274,8 +2274,7 @@ ieee80211_recv_auth(struct ieee80211com *ic, mbuf_t m,
 #endif
         return;
     }
-    ic->ic_deauth_reason = IEEE80211_REASON_UNSPECIFIED;
-    ic->ic_assoc_status = 0xffff;
+    ieee80211_reset_assoc_status(ic);
     ieee80211_auth_open(ic, wh, ni, rxi, seq, status);
 }
 
@@ -2668,6 +2667,9 @@ ieee80211_recv_assoc_resp(struct ieee80211com *ic, mbuf_t m,
         if (ic->ic_event_handler) {
             (*ic->ic_event_handler)(ic, IEEE80211_EVT_STA_ASSOC_DONE, NULL);
         }
+    } else {
+        ieee80211_record_assoc_failure(ic,
+            ieee80211_assoc_failure_from_status(status), 0, status);
     }
     
     if (status != IEEE80211_STATUS_SUCCESS) {
@@ -2870,7 +2872,8 @@ ieee80211_recv_deauth(struct ieee80211com *ic, mbuf_t m,
     reason = LE_READ_2(frm);
 
     XYLog("Deauth received, reason %d\n", reason);
-    ic->ic_deauth_reason = reason;
+    ieee80211_record_assoc_failure(ic,
+        ieee80211_assoc_failure_from_reason(reason), reason, 0xffff);
     if (ic->ic_event_handler) {
         (*ic->ic_event_handler)(ic, IEEE80211_EVT_STA_DEAUTH, NULL);
     }
